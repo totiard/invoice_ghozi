@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Invoice Travel - Ghozi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Input Styles agar menyatu dengan kertas */
+        .input-ghost {
+            background: transparent;
+            border: 1px dashed #d1d5db;
+            padding: 1px 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        .input-ghost:hover {
+            border-color: #3b82f6;
+            background-color: #f0f9ff;
+        }
+        .input-ghost:focus {
+            outline: none;
+            border-color: #2563eb;
+            background-color: #eff6ff;
+            border-style: solid;
+        }
+
+        /* Watermark Background */
+        .bg-watermark {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f1f5f9' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        
+        /* === SETTINGAN KHUSUS PRINT === */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            
+            body {
+                background-color: white;
+                margin: 0;
+                padding: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .invoice-container {
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                width: 210mm !important;
+                /* REVISI: Hapus height fix dan flex justify-between agar footer nempel ke konten */
+                min-height: 297mm !important; 
+                padding: 10mm 12mm !important; 
+                position: relative;
+                overflow: hidden;
+                transform: scale(0.98); 
+                transform-origin: top center;
+                display: block !important; /* Pastikan block flow biasa */
+            }
+
+            .header-ribbon {
+                /* Tetap rounded saat print */
+                border-top-left-radius: 0.75rem !important;
+                border-top-right-radius: 0.75rem !important;
+            }
+
+            .input-ghost {
+                border: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                resize: none;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            
+            textarea.input-ghost {
+                white-space: pre-wrap;
+                height: auto;
+            }
+
+            ::placeholder {
+                color: transparent;
+            }
+
+            .tax-section {
+                display: flex !important;
+                justify-content: flex-end !important;
+                width: 100% !important;
+            }
+
+            /* Paksa Print Icon & Background */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            .footer-row {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: flex-end !important;
+            }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex flex-col items-center">
+
+    <!-- TOOLBAR (Tidak akan ikut ter-print) -->
+    <div class="w-full max-w-[210mm] bg-white p-4 rounded-xl shadow-md mb-6 flex flex-wrap justify-between items-center gap-4 no-print border border-blue-100">
+        <div class="flex items-center gap-2">
+            <span class="font-bold text-blue-900"><i class="fas fa-cog mr-1"></i> Pengaturan:</span>
+            <button onclick="toggleStatus()" id="statusBtn" class="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-sm">
+                <i class="fas fa-times-circle"></i> Set LUNAS
+            </button>
+        </div>
+        <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-lg flex items-center transition-all hover:scale-105">
+            <i class="fas fa-print mr-2"></i> Cetak / Save PDF
+        </button>
+    </div>
+
+    <!-- KERTAS INVOICE (Ukuran A4) -->
+    <!-- REVISI: Hapus flex justify-between agar footer tidak mental ke bawah -->
+    <div class="invoice-container w-full max-w-[210mm] bg-white shadow-2xl rounded-xl overflow-hidden relative min-h-[297mm] bg-watermark">
+        
+        <!-- Header Ribbon -->
+        <div class="header-ribbon bg-blue-600 h-4 w-full absolute top-0 left-0 rounded-t-xl z-10"></div>
+
+        <div class="p-8 md:p-10 print:p-0 relative z-0">
+            
+            <!-- Header Section -->
+            <div class="flex flex-col md:flex-row justify-between items-start mb-8 print:flex-row border-b border-gray-100 pb-6">
+                <div class="w-full md:w-1/2 print:w-6/12">
+                    <div class="flex items-center gap-4 mb-3">
+                        <div class="bg-blue-600 text-white p-3 rounded-lg shadow-sm print:shadow-none">
+                            <i class="fas fa-plane-departure text-3xl"></i>
+                        </div>
+                        <div>
+                            <input type="text" value="Ghozi Travel" class="input-ghost text-3xl font-extrabold text-blue-900 w-full uppercase tracking-tight">
+                            <input type="text" value="Professional Travel Agent" class="input-ghost text-gray-500 text-sm w-full font-medium">
+                        </div>
+                    </div>
+                    <!-- Contact Info Icons (Biar Rame) -->
+                    <div class="space-y-1 mt-2 text-sm text-gray-600 pl-1">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-map-marker-alt text-blue-400 w-4"></i>
+                            <input type="text" value="Pekanbaru, Riau, Indonesia" class="input-ghost text-xs">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-envelope text-blue-400 w-4"></i>
+                            <input type="text" value="booking@ghozitravel.com" class="input-ghost text-xs">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-globe text-blue-400 w-4"></i>
+                            <input type="text" value="www.ghozitravel.com" class="input-ghost text-xs">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full md:w-1/2 text-left md:text-right mt-6 md:mt-0 print:w-6/12 print:mt-0 print:text-right">
+                    <h2 class="text-5xl font-black text-gray-100 uppercase tracking-widest mb-2 select-none">INVOICE</h2>
+                    
+                    <div class="flex items-center md:justify-end gap-2 mb-1 print:justify-end">
+                        <span class="text-gray-500 text-sm font-bold">No. Invoice:</span>
+                        <input type="text" value="INV-20251031-001" class="input-ghost text-right font-bold text-gray-800 w-40">
+                    </div>
+                    
+                    <div class="flex items-center md:justify-end gap-2 print:justify-end">
+                        <span class="text-gray-500 text-sm font-bold">Tanggal:</span>
+                        <input type="date" value="" class="input-ghost text-right font-medium text-gray-700 w-40">
+                    </div>
+
+                    <!-- Badge Status -->
+                    <div id="statusBadge" class="mt-4 inline-block bg-red-100 text-red-600 border border-red-200 px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-wider print:border-2 print:border-red-600 print:text-red-800 shadow-sm">
+                        BELUM DIBAYAR
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client & Payment Info (Grid lebih padat) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6 print:grid-cols-2 print:gap-8">
+                <!-- Bill To -->
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-100 print:bg-transparent print:border-gray-200 print:p-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">Ditagihkan Kepada (Bill To)</h3>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-user-circle text-gray-300 text-3xl mt-1 print:hidden"></i>
+                        <div class="w-full">
+                            <input type="text" value="Bpk. Dias Saputra" class="input-ghost text-lg font-bold text-blue-900 mb-1" placeholder="Nama Klien">
+                            <textarea rows="2" class="input-ghost text-gray-500 text-xs w-full resize-none leading-tight" placeholder="Alamat">Pelanggan Yth.&#10;Pekanbaru</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Info (LEBIH RAME LOGO) -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 print:bg-transparent print:border-blue-100 print:p-2 text-right">
+                    <h3 class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 border-b border-blue-200 pb-1">Metode Pembayaran</h3>
+                    
+                    <div class="flex flex-col items-end">
+                        <div class="flex items-center justify-end gap-2 mb-1">
+                            <input type="text" value="Transfer Bank BCA" class="input-ghost text-right font-bold text-gray-800 w-full">
+                        </div>
+                        
+                        <div class="flex items-center justify-end gap-2 my-1">
+                            <input type="text" value="8265 1793 94" class="input-ghost text-right text-xl font-mono font-bold text-blue-700 w-full">
+                            <i class="far fa-copy text-gray-400 cursor-pointer hover:text-blue-600 print:hidden" title="Copy"></i>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-1 text-sm text-gray-600 mb-2">
+                            <span>a.n.</span>
+                            <input type="text" value="Ghozi Dahlan" class="input-ghost w-32 text-right font-medium">
+                        </div>
+
+                        <!-- LOGO PAYMENT (RAME) -->
+                        <div class="flex gap-2 mt-1 opacity-70 grayscale hover:grayscale-0 transition-all justify-end">
+                            <i class="fab fa-cc-visa text-2xl text-blue-800"></i>
+                            <i class="fab fa-cc-mastercard text-2xl text-red-600"></i>
+                            <i class="fab fa-cc-jcb text-2xl text-green-600"></i>
+                            <div class="flex items-center gap-1 bg-white px-1 rounded border border-gray-200">
+                                <i class="fas fa-university text-gray-600"></i>
+                                <span class="text-[10px] font-bold text-gray-600">ATM/Transfer</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items Table (Compact) -->
+            <div class="mb-6">
+                <table class="w-full text-left border-collapse" id="itemsTable">
+                    <thead>
+                        <tr class="bg-gray-100 print:bg-gray-100 border-y border-gray-200 text-gray-600">
+                            <th class="py-2 px-3 text-xs font-bold uppercase w-5/12 rounded-l-md">Deskripsi Perjalanan</th>
+                            <th class="py-2 px-2 text-center text-xs font-bold uppercase w-2/12">Pax</th>
+                            <th class="py-2 px-2 text-right text-xs font-bold uppercase w-2/12">Harga</th>
+                            <th class="py-2 px-3 text-right text-xs font-bold uppercase w-3/12 rounded-r-md">Total</th>
+                            <th class="w-8 no-print"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Javascript generated rows -->
+                    </tbody>
+                </table>
+                
+                <button onclick="addNewRow()" class="mt-3 text-xs font-bold text-blue-600 hover:text-blue-800 no-print flex items-center gap-2 px-2 py-1 hover:bg-blue-50 rounded transition-colors">
+                    <i class="fas fa-plus-circle"></i> Tambah Item / Tiket
+                </button>
+            </div>
+
+            <!-- Calculations Section -->
+            <div class="flex justify-end mb-4 tax-section">
+                <div class="w-full md:w-1/2 lg:w-5/12 space-y-1 print:w-6/12">
+                    
+                    <!-- Subtotal -->
+                    <div class="flex justify-between items-center text-gray-500 text-sm">
+                        <span>Subtotal</span>
+                        <span class="font-mono font-medium" id="subtotalDisplay">Rp 0</span>
+                    </div>
+
+                    <!-- Pajak / Biaya Layanan -->
+                    <div class="flex justify-between items-center text-gray-500 py-1 text-sm">
+                        <div class="flex items-center gap-2 flex-grow">
+                            <input type="text" value="Biaya Layanan" class="input-ghost text-sm w-32 text-gray-500">
+                            <select id="taxType" onchange="calculateAll()" class="no-print text-xs border border-gray-300 rounded p-0.5 bg-white cursor-pointer">
+                                <option value="percent">%</option>
+                                <option value="fixed">Rp</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-end gap-2">
+                            <input type="number" id="taxInput" value="0" oninput="calculateAll()" class="input-ghost text-right text-sm w-16 no-print placeholder-gray-300" placeholder="0">
+                            <span class="font-mono font-medium" id="taxDisplay">Rp 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Grand Total -->
+                    <div class="border-t-2 border-blue-600 pt-2 flex justify-between items-center mt-2 bg-blue-50 p-3 rounded-lg print:bg-transparent print:p-0 print:rounded-none">
+                        <span class="text-lg font-bold text-blue-900">GRAND TOTAL</span>
+                        <span class="text-2xl font-bold text-blue-700 font-mono" id="grandTotalDisplay">Rp 0</span>
+                    </div>
+                </div>
+            </div>
+
+        <!-- Footer / Terms (Sticky Bottom removed, now just margin top) -->
+        <!-- REVISI: mt-auto diganti mt-10 agar jarak tidak terlalu jauh -->
+        <div class="bg-gray-50 p-8 border-t border-gray-200 mt-10 print:bg-transparent print:p-0 print:pt-4 print:border-t-2 print:border-gray-300">
+            <div class="flex flex-col md:flex-row gap-8 footer-row">
+                <!-- Kiri: Ketentuan -->
+                <div class="w-full md:w-7/12 footer-left">
+                    <input type="text" value="SYARAT & KETENTUAN" class="input-ghost font-bold text-gray-700 text-xs mb-2 uppercase w-full tracking-wider">
+                    <div class="text-[10px] text-gray-500 space-y-1 ml-4 leading-relaxed">
+                        <ul class="list-disc space-y-0.5" id="termsList">
+                            <li contenteditable="true" class="outline-none hover:bg-gray-100 p-0.5 rounded">Harga sudah termasuk tiket penerbangan sesuai rute dan bagasi yang tercantum.</li>
+                            <li contenteditable="true" class="outline-none hover:bg-gray-100 p-0.5 rounded">Perubahan nama, jadwal, atau bagasi setelah tiket terbit dapat dikenakan biaya tambahan sesuai kebijakan maskapai.</li>
+                            <li contenteditable="true" class="outline-none hover:bg-gray-100 p-0.5 rounded">Reschedule/Refund mengikuti kebijakan maskapai.</li>
+                            <li contenteditable="true" class="outline-none hover:bg-gray-100 p-0.5 rounded">Dokumen ini adalah invoice tagihan, bukan tiket resmi penerbangan.</li>
+                            <li contenteditable="true" class="outline-none hover:bg-gray-100 p-0.5 rounded">Harap lakukan konfirmasi pembayaran dengan mengirimkan bukti transfer.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Kanan: Tanda Tangan & Identitas -->
+                <div class="w-full md:w-5/12 text-center md:text-right flex flex-col justify-end footer-right">
+                    <div class="h-16 mb-1 flex items-end justify-center md:justify-end opacity-80">
+                        <!-- Tanda Tangan Digital Style -->
+                        <div class="relative">
+                            <input type="text" value="Ghozi D." class="input-ghost text-center md:text-right font-serif text-2xl text-blue-900 font-bold italic w-full z-10 relative">
+                            <!-- REVISI: Garis bawah dihapus sesuai request -->
+                        </div>
+                    </div>
+                    
+                    <input type="text" value="Ghozi Travel" class="input-ghost text-center md:text-right font-bold text-gray-800 text-sm w-full mb-0">
+                    
+                    <!-- Verified Agent Section -->
+                    <div class="flex items-center justify-center md:justify-end gap-1 mb-1 w-full">
+                        <span class="text-[10px] text-gray-400 uppercase tracking-widest">Authorized Agent</span>
+                        <i class="fas fa-check-circle text-blue-500 text-xs"></i>
+                    </div>
+                    
+                    <!-- WhatsApp (Highlight) -->
+                    <div class="flex items-center justify-center md:justify-end gap-2 mt-1 text-gray-700 w-full bg-green-50 py-1 px-2 rounded-full border border-green-100 print:bg-transparent print:border-none print:p-0">
+                        <i class="fab fa-whatsapp text-green-600 text-lg"></i>
+                        <input type="text" value="+62 878-9799-0235" class="input-ghost text-center md:text-right text-xs font-bold w-auto text-green-800 print:text-gray-700">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Hiasan Garis Bawah -->
+            <div class="h-2 w-full bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600 mt-4 rounded-full opacity-20 print:opacity-100"></div>
+        </div>
+    </div>
+    </div>
+    
+    <div class="mt-8 text-gray-400 text-xs text-center no-print pb-8">
+        Tips: Gunakan ukuran kertas "A4" dan Scale "Default" atau "Fit to Printable Area" saat print.
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Data Awal
+        let items = [
+            { desc: 'Tiket AirAsia (PKU - KUL)', sub: '18 Nov | 08.00 WIB • Bagasi 20KG', qty: 10, price: 700000 },
+            { desc: 'Tiket AirAsia (KUL - PKU)', sub: '28 Nov | 15.40 Local • Bagasi 20KG', qty: 9, price: 1250000 },
+            { desc: 'Tambahan Tiket PP (KUL - PKU)', sub: 'a.n. Indrawati • 18-29 Nov', qty: 1, price: 1400000 }
+        ];
+
+        let isPaid = false;
+
+        const formatRupiah = (num) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+        };
+
+        function renderItems() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            items.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-100 hover:bg-blue-50 transition-colors group text-sm';
+                
+                tr.innerHTML = `
+                    <td class="py-3 px-3 align-top">
+                        <div class="flex items-start gap-2">
+                            <i class="fas fa-ticket-alt text-blue-300 mt-1 text-xs print:hidden"></i>
+                            <div class="w-full">
+                                <input type="text" value="${item.desc}" oninput="updateItem(${index}, 'desc', this.value)" class="input-ghost font-bold text-gray-800 mb-0.5 placeholder-gray-400 w-full" placeholder="Nama Tiket">
+                                <textarea oninput="updateItem(${index}, 'sub', this.value)" rows="1" class="input-ghost text-xs text-gray-500 w-full placeholder-gray-300 resize-none h-auto overflow-hidden leading-tight" style="min-height: 1.2em">${item.sub}</textarea>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-3 px-2 align-top text-center">
+                        <input type="number" value="${item.qty}" oninput="updateItem(${index}, 'qty', this.value)" class="input-ghost text-center w-12 mx-auto font-medium">
+                    </td>
+                    <td class="py-3 px-2 align-top text-right">
+                        <input type="number" value="${item.price}" oninput="updateItem(${index}, 'price', this.value)" class="input-ghost text-right w-full font-mono text-gray-600 text-xs">
+                    </td>
+                    <td class="py-3 px-3 align-top text-right font-bold text-gray-800 font-mono text-sm" id="row-total-${index}">
+                        ${formatRupiah(item.qty * item.price)}
+                    </td>
+                    <td class="py-3 px-2 align-middle text-center no-print">
+                        <button onclick="deleteItem(${index})" class="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            calculateAll();
+        }
+
+        // FUNGSI UPDATE BARU (Anti-Lag)
+        function updateItem(index, field, value) {
+            if (field === 'qty' || field === 'price') {
+                items[index][field] = parseFloat(value) || 0;
+                
+                const totalCell = document.getElementById(`row-total-${index}`);
+                if(totalCell) {
+                    totalCell.textContent = formatRupiah(items[index].qty * items[index].price);
+                }
+                
+                calculateAll();
+            } else {
+                items[index][field] = value;
+            }
+        }
+
+        function addNewRow() {
+            items.push({ desc: 'Item Baru', sub: 'Keterangan...', qty: 1, price: 0 });
+            renderItems();
+        }
+
+        function deleteItem(index) {
+            if(confirm('Hapus baris ini?')) {
+                items.splice(index, 1);
+                renderItems();
+            }
+        }
+
+        function calculateAll() {
+            const subtotal = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
+            document.getElementById('subtotalDisplay').textContent = formatRupiah(subtotal);
+
+            const taxType = document.getElementById('taxType').value;
+            const taxInputVal = parseFloat(document.getElementById('taxInput').value) || 0;
+            
+            let taxValue = 0;
+            if (taxType === 'percent') {
+                taxValue = subtotal * (taxInputVal / 100);
+            } else {
+                taxValue = taxInputVal;
+            }
+
+            document.getElementById('taxDisplay').textContent = formatRupiah(taxValue);
+
+            const grandTotal = subtotal + taxValue;
+            document.getElementById('grandTotalDisplay').textContent = formatRupiah(grandTotal);
+        }
+
+        function toggleStatus() {
+            const badge = document.getElementById('statusBadge');
+            const btn = document.getElementById('statusBtn');
+            isPaid = !isPaid;
+
+            if (isPaid) {
+                badge.textContent = 'LUNAS / PAID';
+                badge.className = "mt-4 inline-block bg-green-100 text-green-700 border-2 border-green-600 px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-wider print:text-green-800 shadow-sm transform -rotate-2";
+                badge.style.borderStyle = "double";
+                btn.innerHTML = '<i class="fas fa-undo"></i> Batalkan Lunas';
+                btn.className = "flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-white bg-green-500 hover:bg-green-600 transition-all shadow-sm";
+            } else {
+                badge.textContent = 'BELUM DIBAYAR';
+                badge.className = "mt-4 inline-block bg-red-100 text-red-600 border border-red-200 px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-wider print:border-2 print:border-red-600 print:text-red-800 shadow-sm";
+                badge.style.borderStyle = "solid";
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> Set LUNAS';
+                btn.className = "flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-sm";
+            }
+        }
+
+        document.addEventListener('input', function (event) {
+            if (event.target.tagName.toLowerCase() !== 'textarea') return;
+            autoExpand(event.target);
+        }, false);
+
+        function autoExpand(field) {
+            field.style.height = 'inherit';
+            const computed = window.getComputedStyle(field);
+            const height = parseInt(computed.getPropertyValue('border-top-width'), 10)
+                        + parseInt(computed.getPropertyValue('padding-top'), 10)
+                        + field.scrollHeight
+                        + parseInt(computed.getPropertyValue('padding-bottom'), 10)
+                        + parseInt(computed.getPropertyValue('border-bottom-width'), 10);
+
+            field.style.height = height + 'px';
+        }
+
+        renderItems();
+    </script>
+</body>
+</html>
