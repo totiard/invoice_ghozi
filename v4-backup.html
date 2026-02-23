@@ -38,19 +38,6 @@
             border-style: solid;
         }
 
-        /* Class khusus untuk mengganti Textarea agar tidak ada GAP saat diprint */
-        .editable-area {
-            white-space: pre-wrap;
-            word-break: break-word;
-            cursor: text;
-        }
-        .editable-area:empty:before {
-            content: attr(data-placeholder);
-            color: #9ca3af;
-            pointer-events: none;
-            display: block;
-        }
-
         /* Watermark Background */
         .bg-watermark {
             background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f1f5f9' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
@@ -119,8 +106,21 @@
                 background: transparent !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                appearance: none; 
+                resize: none;
+                overflow: hidden;
+                white-space: nowrap;
+                appearance: none; /* Hilangkan panah dropdown saat print */
                 background-image: none !important;
+            }
+
+            /* Sembunyikan panah atas-bawah pada input angka (qty/harga) saat print */
+            input[type="number"]::-webkit-inner-spin-button, 
+            input[type="number"]::-webkit-outer-spin-button { 
+                -webkit-appearance: none !important; 
+                margin: 0 !important; 
+            }
+            input[type="number"] {
+                -moz-appearance: textfield !important;
             }
 
             ::placeholder {
@@ -226,11 +226,13 @@
                     
                     <div class="flex items-center md:justify-end gap-2 mb-1 print:justify-end">
                         <span class="text-gray-500 text-sm font-bold">No. Invoice:</span>
+                        <!-- ID added for auto-generation logic -->
                         <input type="text" id="invoiceNo" value="INV-XXXXXX-001" class="input-ghost text-right font-bold text-gray-800 w-40">
                     </div>
                     
                     <div class="flex items-center md:justify-end gap-2 print:justify-end">
                         <span class="text-gray-500 text-sm font-bold">Tanggal:</span>
+                        <!-- ID added for auto-date logic -->
                         <input type="date" id="invoiceDate" class="input-ghost text-right font-medium text-gray-700 w-40">
                     </div>
 
@@ -250,9 +252,10 @@
                         <i class="fas fa-user-circle text-gray-300 text-3xl mt-1 print:hidden"></i>
                         <div class="w-full">
                             <input type="text" id="clientName" value="Bpk. Dias Saputra" class="input-ghost text-lg font-bold text-blue-900 mb-1" placeholder="Nama Klien">
-                            <!-- DIV PENGGANTI TEXTAREA (Tanpa bug gap print) -->
-                            <div id="clientAddress" contenteditable="true" data-placeholder="Alamat" class="input-ghost editable-area text-gray-500 text-xs w-full leading-tight" style="min-height: 40px;">Pelanggan Yth.
-Pekanbaru</div>
+                            <!-- TEXTAREA DISAMAR SAAT CETAK -->
+                            <textarea id="clientAddress" rows="2" class="input-ghost text-gray-500 text-xs w-full resize-none leading-tight print:hidden" placeholder="Alamat" oninput="document.getElementById('clientAddressPrint').textContent = this.value;">Pelanggan Yth.&#10;Pekanbaru</textarea>
+                            <!-- ELEMEN PENGGANTI SAAT CETAK (DIV biasa yang otomatis memanjang ke bawah) -->
+                            <div id="clientAddressPrint" class="hidden print:block whitespace-pre-wrap text-gray-500 text-xs w-full leading-tight">Pelanggan Yth.&#10;Pekanbaru</div>
                         </div>
                     </div>
                 </div>
@@ -395,6 +398,7 @@ Pekanbaru</div>
                     <!-- WhatsApp (Link Aktif) -->
                     <a id="waLink" href="https://wa.me/6287897990235" target="_blank" class="flex items-center justify-center md:justify-end gap-2 mt-1 text-gray-700 w-full bg-green-50 hover:bg-green-100 transition-colors py-1 px-2 rounded-full border border-green-100 print:bg-transparent print:border-none print:p-0 cursor-pointer">
                         <i class="fab fa-whatsapp text-green-600 text-lg"></i>
+                        <!-- Input untuk Edit Nomor WA -->
                         <input type="text" id="waInput" value="+62 878-9799-0235" oninput="updateWALink(this.value)" class="input-ghost text-center md:text-right text-xs font-bold w-auto text-green-800 print:text-gray-700 cursor-pointer">
                     </a>
                 </div>
@@ -412,16 +416,7 @@ Pekanbaru</div>
     <script>
         // LOGO SVG BANK INDONESIA (ASLI)
         const bankLogos = {
-
-        };
-
-        // Fungsi agar tag HTML tidak merusak layout saat load JSON
-        const escapeHTML = (str) => {
-            if (!str) return '';
-            return str.toString().replace(/[&<>'"]/g, match => {
-                const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' };
-                return map[match];
-            });
+            
         };
 
         let items = [
@@ -462,20 +457,24 @@ Pekanbaru</div>
 
             items.forEach((item, index) => {
                 const tr = document.createElement('tr');
+                // Style beda kalo dia pembayaran (Minus)
                 const isPayment = item.type === 'payment';
                 const rowClass = isPayment ? 'text-rose-600 bg-rose-50/50 print:text-rose-700' : 'text-gray-800';
                 const pricePrefix = isPayment ? '- ' : '';
                 
                 tr.className = `border-b border-gray-100 hover:bg-gray-50 transition-colors group text-sm ${rowClass}`;
                 
-                // PENGGANTI TEXTAREA -> Menggunakan div contenteditable
+                // TEXTAREA DISAMAR SAAT CETAK, DAN DIGANTIKAN OLEH DIV BIASA
                 tr.innerHTML = `
                     <td class="py-3 px-3 align-top">
                         <div class="flex items-start gap-2">
                             <i class="fas ${isPayment ? 'fa-money-bill-wave' : 'fa-ticket-alt'} ${isPayment ? 'text-rose-400' : 'text-blue-300'} mt-1 text-xs print:hidden"></i>
                             <div class="w-full">
-                                <input type="text" value="${escapeHTML(item.desc)}" oninput="updateItem(${index}, 'desc', this.value)" class="input-ghost font-bold mb-0.5 placeholder-gray-400 w-full ${rowClass}" placeholder="Deskripsi Item">
-                                <div contenteditable="true" data-placeholder="Keterangan..." oninput="updateItem(${index}, 'sub', this.innerText)" class="input-ghost editable-area text-xs ${isPayment ? 'text-rose-400' : 'text-gray-500'} w-full leading-relaxed" style="min-height: 20px;">${escapeHTML(item.sub)}</div>
+                                <input type="text" value="${item.desc}" oninput="updateItem(${index}, 'desc', this.value)" class="input-ghost font-bold mb-0.5 placeholder-gray-400 w-full ${rowClass}" placeholder="Deskripsi Item">
+                                <!-- Textarea edit (Disembunyikan saat print dengan class print:hidden) -->
+                                <textarea oninput="updateItem(${index}, 'sub', this.value); this.nextElementSibling.textContent = this.value;" rows="1" class="input-ghost text-xs ${isPayment ? 'text-rose-400' : 'text-gray-500'} w-full placeholder-gray-300 resize-none h-auto overflow-hidden leading-tight print:hidden" style="min-height: 1.2em">${item.sub}</textarea>
+                                <!-- Elemen pengganti saat cetak -->
+                                <div class="hidden print:block whitespace-pre-wrap text-xs ${isPayment ? 'text-rose-700' : 'text-gray-500'} w-full leading-tight">${item.sub}</div>
                             </div>
                         </div>
                     </td>
@@ -500,15 +499,26 @@ Pekanbaru</div>
                 tbody.appendChild(tr);
             });
             calculateAll();
+
+            // Memastikan autoExpand berjalan pada text area setelah item di render/di import
+            setTimeout(() => {
+                document.querySelectorAll('textarea').forEach(ta => {
+                    autoExpand(ta);
+                });
+            }, 10);
         }
 
         // --- 4. UPDATE ITEM & CALCULATION ---
         function updateItem(index, field, value) {
             if (field === 'qty' || field === 'price') {
                 items[index][field] = parseFloat(value) || 0;
+                
                 const totalCell = document.getElementById(`row-total-${index}`);
                 const isPayment = items[index].type === 'payment';
-                if(totalCell) totalCell.textContent = (isPayment ? '- ' : '') + formatRupiah(items[index].qty * items[index].price);
+                if(totalCell) {
+                    totalCell.textContent = (isPayment ? '- ' : '') + formatRupiah(items[index].qty * items[index].price);
+                }
+                
                 calculateAll();
             } else {
                 items[index][field] = value;
@@ -534,17 +544,23 @@ Pekanbaru</div>
         }
 
         function calculateAll() {
+            // Pisahkan logika Charge vs Payment
             let subtotalCharges = 0;
             let totalPayments = 0;
 
             items.forEach(item => {
                 const amount = item.qty * item.price;
-                if (item.type === 'payment') totalPayments += amount;
-                else subtotalCharges += amount;
+                if (item.type === 'payment') {
+                    totalPayments += amount;
+                } else {
+                    subtotalCharges += amount;
+                }
             });
 
+            // Update UI Subtotal (Hanya item tagihan)
             document.getElementById('subtotalDisplay').textContent = formatRupiah(subtotalCharges);
 
+            // Update UI Summary Payment jika ada
             const paymentSummaryDiv = document.getElementById('paymentSummary');
             if(totalPayments > 0) {
                 paymentSummaryDiv.style.display = 'block';
@@ -553,17 +569,24 @@ Pekanbaru</div>
                 paymentSummaryDiv.style.display = 'none';
             }
 
+            // Hitung Pajak (Dari subtotal tagihan)
             const taxType = document.getElementById('taxType').value;
             const taxInputVal = parseFloat(document.getElementById('taxInput').value) || 0;
             let taxValue = 0;
-            if (taxType === 'percent') taxValue = subtotalCharges * (taxInputVal / 100);
-            else taxValue = taxInputVal;
-            
+            if (taxType === 'percent') {
+                taxValue = subtotalCharges * (taxInputVal / 100);
+            } else {
+                taxValue = taxInputVal;
+            }
             document.getElementById('taxDisplay').textContent = formatRupiah(taxValue);
 
+            // Grand Total = (Tagihan + Pajak) - Pembayaran
             const grandTotal = (subtotalCharges + taxValue) - totalPayments;
+            
+            // Handle display minus jika overpaid (opsional, tp biar rapi)
             document.getElementById('grandTotalDisplay').textContent = formatRupiah(grandTotal);
             
+            // Ubah warna Grand Total kalau minus (kembalian)
             const grandTotalEl = document.getElementById('grandTotalDisplay');
             if(grandTotal < 0) {
                 grandTotalEl.classList.add('text-green-600');
@@ -579,22 +602,27 @@ Pekanbaru</div>
         function updateBankLogo() {
             const bank = document.getElementById('bankSelect').value;
             const container = document.getElementById('bankLogoContainer');
-            if (bankLogos[bank]) container.innerHTML = bankLogos[bank];
-            else container.innerHTML = `<span class="font-bold text-gray-500">${bank}</span>`;
+            if (bankLogos[bank]) {
+                container.innerHTML = bankLogos[bank];
+            } else {
+                container.innerHTML = `<span class="font-bold text-gray-500">${bank}</span>`;
+            }
         }
 
         // --- 6. LINK WA DINAMIS ---
         function updateWALink(val) {
+            // Bersihkan format +62 878-999 jadi 62878999 (angka saja)
             const cleanNum = val.replace(/\D/g, ''); 
             const link = document.getElementById('waLink');
             link.href = `https://wa.me/${cleanNum}`;
         }
 
-        // --- 7. TOGGLE STATUS ---
+        // --- 7. TOGGLE STATUS (DARI VERSI 2) ---
         function toggleStatus(forceStatus = null) {
             const badge = document.getElementById('statusBadge');
             const btn = document.getElementById('statusBtn');
             
+            // Jika dipaksa dari luar (misal pas import), pakai nilai paksa. Kalau tidak, rotasi nilainya.
             if(forceStatus !== null) {
                 currentStatus = forceStatus;
             } else {
@@ -635,8 +663,27 @@ Pekanbaru</div>
             }
         }
 
+        // --- 8. AUTO RESIZE TEXTAREA (MENGGUNAKAN LOGIKA VERSI 1) ---
+        document.addEventListener('input', function (event) {
+            if (event.target.tagName.toLowerCase() !== 'textarea') return;
+            autoExpand(event.target);
+        }, false);
 
-        // --- 9. FITUR EXPORT (SIMPAN KE JSON) ---
+        function autoExpand(field) {
+            field.style.height = 'inherit';
+            const computed = window.getComputedStyle(field);
+            const height = parseInt(computed.getPropertyValue('border-top-width'), 10)
+                        + parseInt(computed.getPropertyValue('padding-top'), 10)
+                        + field.scrollHeight
+                        + parseInt(computed.getPropertyValue('padding-bottom'), 10)
+                        + parseInt(computed.getPropertyValue('border-bottom-width'), 10);
+
+            field.style.height = height + 'px';
+        }
+
+        // Script aneh "beforeprint" sudah dihapus sepenuhnya dari sini.
+
+        // --- 9. FITUR EXPORT (SIMPAN KE JSON DARI VERSI 2) ---
         function exportData() {
             // Ambil text dari syarat & ketentuan
             const termsItems = Array.from(document.querySelectorAll('#termsList li')).map(li => li.innerText);
@@ -651,10 +698,10 @@ Pekanbaru</div>
                 
                 invoiceNo: document.getElementById('invoiceNo').value,
                 invoiceDate: document.getElementById('invoiceDate').value,
-                currentStatus: currentStatus, 
+                currentStatus: currentStatus, // Simpan status baru
                 
                 clientName: document.getElementById('clientName').value,
-                clientAddress: document.getElementById('clientAddress').innerText, // <-- Update ambil innerText
+                clientAddress: document.getElementById('clientAddress').value,
                 
                 bankSelect: document.getElementById('bankSelect').value,
                 bankRekening: document.getElementById('bankRekening').value,
@@ -692,7 +739,7 @@ Pekanbaru</div>
             URL.revokeObjectURL(url);
         }
 
-        // --- 10. FITUR IMPORT (BUKA DARI JSON) ---
+        // --- 10. FITUR IMPORT (BUKA DARI JSON DARI VERSI 2) ---
         function importData(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -722,7 +769,10 @@ Pekanbaru</div>
                     toggleStatus(importedStatus);
 
                     document.getElementById('clientName').value = data.clientName || "";
-                    document.getElementById('clientAddress').innerText = data.clientAddress || ""; // <-- Set innerText
+                    
+                    const addr = data.clientAddress || "";
+                    document.getElementById('clientAddress').value = addr;
+                    document.getElementById('clientAddressPrint').textContent = addr;
                     
                     document.getElementById('bankSelect').value = data.bankSelect || "BCA";
                     document.getElementById('bankRekening').value = data.bankRekening || "";
@@ -759,6 +809,9 @@ Pekanbaru</div>
                     updateBankLogo();
                     renderItems();
                     
+                    // Terapkan auto expand pada text area alamat
+                    autoExpand(document.getElementById('clientAddress'));
+                    
                 } catch(err) {
                     alert("Gagal membaca file! Pastikan file yang diupload adalah file .json dari aplikasi ini.");
                     console.error(err);
@@ -766,6 +819,7 @@ Pekanbaru</div>
             };
             reader.readAsText(file);
             
+            // Kosongkan value input file biar bisa upload file yang sama berkali-kali
             event.target.value = '';
         }
 
